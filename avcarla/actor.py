@@ -13,6 +13,8 @@ from avstack.config import PIPELINE, ConfigDict
 from avstack.datastructs import DataManager
 from avstack.geometry import Attitude, GlobalOrigin3D, Pose, Position, ReferenceFrame
 from avstack.geometry import transformations as tforms
+from avstack.modules import BaseModule
+from avstack.utils.decorators import apply_hooks
 
 from avcarla.geometry import (
     carla_location_to_numpy_vector,
@@ -103,7 +105,15 @@ def try_spawn_actor(world, bp, tf):
     return actor
 
 
-class CarlaActor:
+class CarlaActorManager(BaseModule):
+    def __init__(
+        self,
+        actors: List["CarlaActor"],
+    ) -> None:
+        self.actors = [CARLA.build(actor) for actor in actors]
+
+
+class CarlaActor(BaseModule):
     id_iter_global = itertools.count()
 
     def __init__(
@@ -112,9 +122,16 @@ class CarlaActor:
         pipeline: ConfigDict,
         sensors: List[ConfigDict],
         client: "CarlaClient",
+        *args,
+        **kwargs
     ):
         self.ID_actor_global = next(self.id_iter_global)
         self.ID_actor_type = next(self.id_iter_type)
+        if self.mobile:
+            name = f"mobileactor-{self.ID_actor_type}"
+        else:
+            name = f"staticactor-{self.ID_actor_type}"
+        super().__init__(name=name, *args, **kwargs)
 
         # basics
         self.world = client.world
@@ -180,13 +197,10 @@ class CarlaStaticActor(CarlaActor):
         self.tform = parse_spawn(spawn=spawn, spawn_points=client.spawn_points)
         super().__init__(spawn=spawn, pipeline=pipeline, sensors=sensors, client=client)
 
-    @property
-    def name(self):
-        return f"staticactor-{self.ID_actor_type}"
-
     def get_pose(self):
         return carla_transform_to_pose(self.tform)
 
+    @apply_hooks
     def tick(self):
         data = self.sensor_data_manager.pop()
         out = self.pipeline(data)
@@ -240,10 +254,7 @@ class CarlaMobileActor(CarlaActor):
         else:
             print("Spawned ego actor at {}".format(ego_init.position.x))
 
-    @property
-    def name(self):
-        return f"mobileactor-{self.ID_actor_type}"
-
+    @apply_hooks
     def tick(self):
         data = self.sensor_data_manager.pop()
         ctrl = self.pipeline(data)
