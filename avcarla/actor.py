@@ -10,7 +10,7 @@ import itertools
 # import carla
 import numpy as np
 from avstack.config import PIPELINE, ConfigDict
-from avstack.datastructs import DataManager
+from avstack.datastructs import DataContainer, DataManager
 from avstack.geometry import Attitude, GlobalOrigin3D, Pose, Position, ReferenceFrame
 from avstack.geometry import transformations as tforms
 from avstack.modules import BaseModule
@@ -19,7 +19,8 @@ from avstack.utils.decorators import apply_hooks
 from avcarla.geometry import (
     carla_location_to_numpy_vector,
     carla_rotation_to_RPY,
-    wrap_actor_to_vehicle_state,
+    wrap_mobile_actor_to_object_state,
+    wrap_static_actor_to_object_state,
 )
 
 from .config import CARLA
@@ -108,10 +109,9 @@ def try_spawn_actor(world, bp, tf):
 @CARLA.register_module()
 class CarlaActorManager(BaseModule):
     def __init__(
-        self,
-        actors: List["CarlaActor"],
-        client: "CarlaClient",
+        self, actors: List["CarlaActor"], client: "CarlaClient", *args, **kwargs
     ) -> None:
+        super().__init__(name="CarlaActorManager", *args, **kwargs)
         self.actors = [
             CARLA.build(actor, default_args={"client": client}) for actor in actors
         ]
@@ -123,10 +123,21 @@ class CarlaActorManager(BaseModule):
     def initialize(self, t0: float, frame0: int):
         for actor in self.actors:
             actor.initialize(t0=t0, frame0=frame0)
+        self.t0 = t0
+        self.frame0 = frame0
 
-    def tick(self):
+    @apply_hooks
+    def on_world_tick(self, world_snapshot):
+        self.timestamp = world_snapshot.timestamp.elapsed_seconds - self.t0
+        self.frame = world_snapshot.frame - self.frame0
         for actor in self.actors:
-            debug = actor.tick()
+            debug = actor.tick(timestamp=self.timestamp, frame=self.frame)
+        return DataContainer(
+            source_identifier="actors",
+            frame=self.frame,
+            timestamp=self.timestamp,
+            data=self.actors,
+        )
 
 
 class CarlaActor(BaseModule):
@@ -177,6 +188,13 @@ class CarlaActor(BaseModule):
         self._pipeline_template = pipeline
         self.pipeline = PIPELINE.build(self._pipeline_template)
 
+    @apply_hooks
+    def tick(self, timestamp: float, frame: int):
+        self.timestamp = timestamp
+        self.frame = frame
+        out = self._tick()
+        return out
+
     def initialize(self, t0, frame0):
         self.t0 = t0
         self.frame0 = frame0
@@ -194,6 +212,20 @@ class CarlaActor(BaseModule):
                 sensor.destroy()
             except (KeyboardInterrupt, Exception) as e:
                 print(f"Could not destroy sensor {s_name}...continuing")
+
+    def encode(self):
+        obj = self.get_object_state()
+        return obj.encode()
+
+    def get_object_state(self):
+        try:
+            if self.mobile:
+                obj = wrap_mobile_actor_to_object_state(self, self.timestamp)
+            else:
+                obj = wrap_static_actor_to_object_state(self, self.timestamp)
+        except RuntimeError:
+            obj = None
+        return obj
 
 
 @CARLA.register_module()
@@ -213,13 +245,12 @@ class CarlaStaticActor(CarlaActor):
         self.tform = parse_spawn(spawn=spawn, spawn_points=client.spawn_points)
         super().__init__(spawn=spawn, pipeline=pipeline, sensors=sensors, client=client)
 
-    def get_pose(self):
-        return carla_transform_to_pose(self.tform)
-
-    @apply_hooks
-    def tick(self):
+    def _tick(self):
         data = self.sensor_data_manager.pop()
         out = self.pipeline(data)
+
+    def get_pose(self):
+        return carla_transform_to_pose(self.tform)
 
 
 @CARLA.register_module()
@@ -248,8 +279,8 @@ class CarlaMobileActor(CarlaActor):
 
         try:
             # provide initialization
-            t_init = 0
-            ego_init = self.get_vehicle_data_from_actor(t_init)
+            self.timestamp = 0  # HACK
+            ego_init = self.get_object_state()
 
             # initialize algorithms
             self.destination = parse_destination(
@@ -258,7 +289,10 @@ class CarlaMobileActor(CarlaActor):
                 reference=ego_init.reference,
             )
             self.pipeline.initialize(
-                t_init, ego_init, destination=self.destination, map_data=self.map
+                self.timestamp,
+                ego_init,
+                destination=self.destination,
+                map_data=self.map,
             )
             self.autopilot = autopilot
             if self.autopilot:
@@ -270,8 +304,7 @@ class CarlaMobileActor(CarlaActor):
         else:
             print("Spawned ego actor at {}".format(ego_init.position.x))
 
-    @apply_hooks
-    def tick(self):
+    def _tick(self):
         data = self.sensor_data_manager.pop()
         ctrl = self.pipeline(data)
         if not self.autopilot:
@@ -286,12 +319,6 @@ class CarlaMobileActor(CarlaActor):
         pos = Position([tf.location.x, -tf.location.y, tf.location.z], GlobalOrigin3D)
         att = Attitude(q, GlobalOrigin3D)
         return Pose(pos, att)
-
-    def get_vehicle_data_from_actor(self, t):
-        try:
-            return wrap_actor_to_vehicle_state(t, self.actor)
-        except RuntimeError as e:
-            return None
 
     # def apply_control(self, ctrl):
     #     VC = carla.VehicleControl(

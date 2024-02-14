@@ -1,9 +1,13 @@
 import math
-from typing import Any, Tuple, Union
+from typing import TYPE_CHECKING, Any, Tuple, Union
+
+
+if TYPE_CHECKING:
+    from .actor import CarlaMobileActor, CarlaStaticActor
 
 import carla
 import numpy as np
-from avstack.environment.objects import VehicleState
+from avstack.environment.objects import ObjectState
 from avstack.geometry import (
     Acceleration,
     AngularVelocity,
@@ -74,13 +78,33 @@ class CarlaReferenceFrame(ReferenceFrame):
         return Transform(location=loc, rotation=rot)
 
 
-def wrap_actor_to_vehicle_state(t, actor):
+def wrap_static_actor_to_object_state(
+    actor: "CarlaStaticActor", t: float
+) -> ObjectState:
+    ID = actor.ID_actor_global
+    obj_type = "static-actor"
+    VS = ObjectState(obj_type, ID=ID)
+    pose = actor.get_pose()
+    pos, att = pose.position, pose.attitude
+    box = None
+    vel = Velocity(np.zeros((3,)), GlobalOrigin3D)
+    acc = Acceleration(np.zeros((3,)), GlobalOrigin3D)
+    ang = AngularVelocity(np.quaternion(1), GlobalOrigin3D)
+    VS.set(t, pos, box, vel, acc, att, ang)
+    return VS
+
+
+def wrap_mobile_actor_to_object_state(
+    actor: "CarlaMobileActor", t: float
+) -> ObjectState:
     """Location is the bottom of the box"""
+    ID = actor.ID_actor_global
+    actor = actor.actor
     obj_type = get_obj_type_from_actor(actor)
     h = 2 * actor.bounding_box.extent.z
     w = 2 * actor.bounding_box.extent.y
     l = 2 * actor.bounding_box.extent.x
-    VS = VehicleState(obj_type, actor.id)
+    VS = ObjectState(obj_type, ID=ID)
     tf = actor.get_transform()
     v = actor.get_velocity()
     ac = actor.get_acceleration()
