@@ -105,12 +105,28 @@ def try_spawn_actor(world, bp, tf):
     return actor
 
 
+@CARLA.register_module()
 class CarlaActorManager(BaseModule):
     def __init__(
         self,
         actors: List["CarlaActor"],
+        client: "CarlaClient",
     ) -> None:
-        self.actors = [CARLA.build(actor) for actor in actors]
+        self.actors = [
+            CARLA.build(actor, default_args={"client": client}) for actor in actors
+        ]
+
+    def destroy(self):
+        for act in self.actors:
+            act.destroy()
+
+    def initialize(self, t0: float, frame0: int):
+        for actor in self.actors:
+            actor.initialize(t0=t0, frame0=frame0)
+
+    def tick(self):
+        for actor in self.actors:
+            debug = actor.tick()
 
 
 class CarlaActor(BaseModule):
@@ -123,7 +139,7 @@ class CarlaActor(BaseModule):
         sensors: List[ConfigDict],
         client: "CarlaClient",
         *args,
-        **kwargs
+        **kwargs,
     ):
         self.ID_actor_global = next(self.id_iter_global)
         self.ID_actor_type = next(self.id_iter_type)
