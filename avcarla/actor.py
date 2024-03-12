@@ -107,6 +107,32 @@ def try_spawn_actor(world, bp, tf):
 
 
 @CARLA.register_module()
+class CarlaNpcManager(BaseModule):
+    def __init__(self, npcs, client: "CarlaClient", *args, **kwargs) -> None:
+        super().__init__(name="CarlaNpcManager", *args, **kwargs)
+        self.npcs = npcs
+
+    def destroy(self):
+        for npc in self.npcs:
+            npc.destroy()
+
+    def initialize(self, t0: float, frame0: int):
+        self.t0 = t0
+        self.frame0 = frame0
+
+    @apply_hooks
+    def on_world_tick(self, world_snapshot):
+        self.timestamp = world_snapshot.timestamp.elapsed_seconds - self.t0
+        self.frame = world_snapshot.frame - self.frame0
+        return DataContainer(
+            source_identifier="npcs",
+            frame=self.frame,
+            timestamp=self.timestamp,
+            data=self.npcs,
+        )
+
+
+@CARLA.register_module()
 class CarlaActorManager(BaseModule):
     def __init__(
         self, actors: List["CarlaActor"], client: "CarlaClient", *args, **kwargs

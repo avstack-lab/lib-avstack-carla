@@ -2,6 +2,7 @@ NAME := avcarla
 INSTALL_STAMP := .install.stamp
 POETRY := $(shell command -v poetry 2> /dev/null)
 .DEFAULT_GOAL := help
+PYCHECK := $(NAME) tests postprocess_carla_objects.py
 
 .PHONY: help
 help:
@@ -28,17 +29,17 @@ clean:
 
 .PHONY: lint
 lint: $(INSTALL_STAMP)
-		$(POETRY) run isort --profile=black --lines-after-imports=2 --check-only ./tests/ $(NAME)
-		$(POETRY) run black --check ./tests/ $(NAME) --diff
-		$(POETRY) run flake8 --ignore=W503,E501 ./tests/ $(NAME)
-		$(POETRY) run mypy ./tests/ $(NAME) --ignore-missing-imports
-		$(POETRY) run bandit -r $(NAME) -s B608
+		$(POETRY) run isort --profile=black --lines-after-imports=2 --check-only $(PYCHECK)
+		$(POETRY) run black --check $(PYCHECK) --diff
+		$(POETRY) run flake8 --ignore=W503,E501 $(PYCHECK)
+		$(POETRY) run mypy $(PYCHECK) --ignore-missing-imports
+		$(POETRY) run bandit -r $(PYCHECK) -s B608
 
 .PHONY: format
 format: $(INSTALL_STAMP)
-		$(POETRY) run autoflake --remove-all-unused-imports -i -r ./tests/ $(NAME) --exclude=__init__.py 
-		$(POETRY) run isort --profile=black --lines-after-imports=2 ./tests/ $(NAME)
-		$(POETRY) run black ./tests/ $(NAME)
+		$(POETRY) run autoflake --remove-all-unused-imports -i -r $(PYCHECK) --exclude=__init__.py 
+		$(POETRY) run isort --profile=black --lines-after-imports=2 $(PYCHECK)
+		$(POETRY) run black $(PYCHECK)
 
 .PHONY: test
 test: $(INSTALL_STAMP)
