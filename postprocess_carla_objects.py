@@ -5,6 +5,7 @@ from functools import partial
 from multiprocessing import Pool
 
 from avapi.carla import CarlaScenesManager
+from avstack.datastructs import DataContainer
 from avstack.environment.objects import Occlusion
 from avstack.maskfilters import box_in_fov
 from tqdm import tqdm
@@ -23,6 +24,7 @@ def main(args, frame_start=4, frame_end_trim=4, n_frames_max=100000, n_max_proc=
         chunksize = 10
         frames = [f for f in CDM.frames if f >= frame_start]
         frames = frames[: max(1, min(n_frames_max, len(frames)) - frame_end_trim)]
+        timestamps = [CDM.get_timestamp(frame=frame) for frame in frames]
         frames_all = frames
         agents = {i: CDM.get_agents(frame=i) for i in frames}
         nproc = max(1, min(n_max_proc, int(len(frames) / chunksize)))
@@ -77,6 +79,7 @@ def main(args, frame_start=4, frame_end_trim=4, n_frames_max=100000, n_max_proc=
                 agent_in_frames,
                 objects_global_filter,
                 frames,
+                timestamps,
                 args.data_dir,
                 with_multi=args.multi,
                 n_max_proc=n_max_proc,
@@ -92,6 +95,7 @@ def main(args, frame_start=4, frame_end_trim=4, n_frames_max=100000, n_max_proc=
                         i_sens + 1, len(CDM.sensor_frames[agent_ID]), sens
                     )
                 )
+                timestamps_this = [CDM.get_timestamp(frame=frame) for frame in frames_all]
                 frames_this = [frame for frame in sensor_frames if frame in frames_all]
                 agent_this = {
                     frame: agents
@@ -110,6 +114,7 @@ def main(args, frame_start=4, frame_end_trim=4, n_frames_max=100000, n_max_proc=
                     agent_this,
                     objects_global_this,
                     frames_this,
+                    timestamps_this,
                     args.data_dir,
                     with_multi=with_multi,
                     n_max_proc=n_max_proc,
@@ -127,6 +132,7 @@ def process_func_sensors(
     agent_in_frames,
     objects_global,
     frames,
+    timestamps,
     data_dir,
     with_multi,
     n_max_proc=10,
@@ -172,17 +178,15 @@ def process_func_sensors(
                 )
             )
     else:
-        for i_frame in tqdm(frames):
-            func(agent_in_frames[i_frame], objects_global[i_frame], i_frame)
+        for i_frame, ts in tqdm(zip(frames, timestamps), total=len(frames)):
+            func(agent_in_frames[i_frame], objects_global[i_frame], i_frame, ts)
 
 
-def process_func_frames(CDM, sens, obj_sens_folder, agent, objects_global, i_frame):
+def process_func_frames(CDM, sens, obj_sens_folder, agent, objects_global, i_frame, timestamp):
     # process objects into frame
     if "agent" in sens:
         agent_ref = agent.as_reference()
-        objects_local = objects_global
-        for obj in objects_local:
-            obj.change_reference(agent_ref, inplace=False)
+        objects_local = [obj.change_reference(agent_ref, inplace=False) for obj in objects_global]
     else:
         calib = CDM.get_calibration(i_frame, agent=agent.ID, sensor=sens)
 
@@ -262,8 +266,14 @@ def process_func_frames(CDM, sens, obj_sens_folder, agent, objects_global, i_fra
         ]
 
     # -- save objects to sensor files
+    objects_local = DataContainer(
+        frame=i_frame,
+        timestamp=timestamp,
+        data=objects_local,
+        source_identifier="objects",
+    )
     obj_file = CDM.npc_files["frame"][i_frame].replace("npcs", "objects")
-    CDM.save_objects(i_frame, objects_local, obj_sens_folder, obj_file)
+    CDM.save_objects(None, objects_local, obj_sens_folder, obj_file)
 
 
 if __name__ == "__main__":
