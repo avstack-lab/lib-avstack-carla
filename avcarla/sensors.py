@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, Union
 
 
 if TYPE_CHECKING:
-    from .bootstrap import CarlaClient
+    from .client import CarlaClient
     from avcarla.actor import CarlaActor
 
 import itertools

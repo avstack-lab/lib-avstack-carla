@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING, List, Tuple
 
 if TYPE_CHECKING:
     from avcarla.actor import CarlaActorManager
-    from avcarla.bootstrap import CarlaClient
+    from avcarla.client import CarlaClient
     from avstack.config import ConfigDict
 
 import carla
@@ -129,12 +129,12 @@ class CarlaDisplay(object):
 
             # set the camera view parameters
             assert len(hud_cameras) > 0
-            assert len(manager.actors) > 0
+            assert len(manager.objects) > 0
             self._hud_cameras = hud_cameras
-            self._actors = manager.actors
+            self._actors = manager.objects
             self._actors_cameras = [
                 [s for k, s in act.sensors.items() if "camera" in k]
-                for act in manager.actors
+                for act in manager.objects
             ]
             self.actor_host_idx = 0
             self.actor_camera_index = 0

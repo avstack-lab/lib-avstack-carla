@@ -24,7 +24,7 @@ from avstack.geometry import (
 from avstack.geometry import transformations as tforms
 from carla import Transform
 
-from .bootstrap import CarlaClient
+from .client import CarlaClient
 from .config import CARLA
 from .utils import get_obj_type_from_actor
 
@@ -98,7 +98,7 @@ def wrap_mobile_actor_to_object_state(
     actor: "CarlaMobileActor", t: float
 ) -> ObjectState:
     """Location is the bottom of the box"""
-    ID = actor.ID_actor_global
+    ID = actor.ID
     actor = actor.actor
     obj_type = get_obj_type_from_actor(actor)
     h = 2 * actor.bounding_box.extent.z

@@ -95,7 +95,9 @@ def main(args, frame_start=4, frame_end_trim=4, n_frames_max=100000, n_max_proc=
                         i_sens + 1, len(CDM.sensor_frames[agent_ID]), sens
                     )
                 )
-                timestamps_this = [CDM.get_timestamp(frame=frame) for frame in frames_all]
+                timestamps_this = [
+                    CDM.get_timestamp(frame=frame) for frame in frames_all
+                ]
                 frames_this = [frame for frame in sensor_frames if frame in frames_all]
                 agent_this = {
                     frame: agents
@@ -182,11 +184,15 @@ def process_func_sensors(
             func(agent_in_frames[i_frame], objects_global[i_frame], i_frame, ts)
 
 
-def process_func_frames(CDM, sens, obj_sens_folder, agent, objects_global, i_frame, timestamp):
+def process_func_frames(
+    CDM, sens, obj_sens_folder, agent, objects_global, i_frame, timestamp
+):
     # process objects into frame
     if "agent" in sens:
         agent_ref = agent.as_reference()
-        objects_local = [obj.change_reference(agent_ref, inplace=False) for obj in objects_global]
+        objects_local = [
+            obj.change_reference(agent_ref, inplace=False) for obj in objects_global
+        ]
     else:
         calib = CDM.get_calibration(i_frame, agent=agent.ID, sensor=sens)
 

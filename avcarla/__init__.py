@@ -1,8 +1,7 @@
 from .actor import CarlaMobileActor, CarlaStaticActor
-from .bootstrap import CarlaClient
+from .client import CarlaClient
 from .config import CARLA
 from .display import CarlaDisplay
-from .models import CarlaImageDetector
 from .sensors import (
     CarlaDepthCamera,
     CarlaGnss,
