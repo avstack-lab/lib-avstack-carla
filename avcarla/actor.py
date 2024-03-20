@@ -214,8 +214,15 @@ class CarlaActor(BaseModule):
         self._pipeline_template = pipeline
         self.pipeline = PIPELINE.build(self._pipeline_template)
 
+    @property
+    def ID(self):
+        return self.ID_actor_global
+
     @apply_hooks
     def tick(self, timestamp: float, frame: int):
+        actor_pose = self.get_pose()
+        self.reference.x = actor_pose.position.x
+        self.reference.q = actor_pose.attitude.q
         self.timestamp = timestamp
         self.frame = frame
         out = self._tick()

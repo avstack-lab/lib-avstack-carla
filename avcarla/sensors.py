@@ -46,6 +46,7 @@ class CarlaSensor(BaseModule):
         do_listen: bool,
         client: "CarlaClient",
         parent: "CarlaActor",
+        source_ID: Union[int, None] = None,
         *args,
         **kwargs,
     ):
@@ -68,11 +69,16 @@ class CarlaSensor(BaseModule):
         self.initialized = False
 
         # -- identifiers
-        source_ID = next(self.next_id)
-        self.ID = source_ID
-        self.source_ID = source_ID
+        _source_ID = next(self.next_id)
+        if source_ID is not None:
+            self.source_ID = source_ID
+        else:
+            if parent.ID is not None:
+                self.source_ID = parent.ID
+            else:
+                self.source_ID = _source_ID
         self.source_name = name
-        self.source_identifier = name + "-" + str(source_ID)
+        self.source_identifier = name + "-" + str(self.source_ID)
 
         # -- spawn from blueprint
         self.attributes = attributes
@@ -462,13 +468,17 @@ class CarlaLidar(CarlaSensor):
         mode: str = "standard",
         sensor_tick: float = 0.10,
         channels: int = 32,
-        rotation_frequency: float = 20,
+        rotation_frequency: float = 50,  # needs to match client rate
         range: float = 70.0,
         points_per_second: int = 1120000,  # 1750 * 32 * 20
         upper_fov: float = 2.4,
         lower_fov: float = -17.6,
+        horizontal_fov: float = 360.0,
         noise: dict = {},
-        reference: ConfigDict = {"type": "CarlaReferenceFrame"},
+        reference: ConfigDict = {
+            "type": "CarlaReferenceFrame",
+            "location": [0, 0, 1.6],
+        },
         do_spawn: bool = True,
         do_listen: bool = True,
         *args,
@@ -481,6 +491,7 @@ class CarlaLidar(CarlaSensor):
             "points_per_second": points_per_second,
             "upper_fov": upper_fov,
             "lower_fov": lower_fov,
+            "horizontal_fov": horizontal_fov,
             "sensor_tick": sensor_tick,
         }
         super().__init__(

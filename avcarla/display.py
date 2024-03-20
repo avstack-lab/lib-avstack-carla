@@ -534,7 +534,10 @@ class HUD(object):
         if self.world_map is None:
             self.world_map = client.map.name
         if self.disp_name is None:
-            self.disp_name = get_actor_display_name(actor.actor, truncate=20)
+            try:
+                self.disp_name = get_actor_display_name(actor.actor, truncate=20)
+            except AttributeError:
+                pass
 
         act = actor.actor if actor.actor else list(actor.sensors.values())[0].object
 

@@ -1,5 +1,5 @@
 import math
-from typing import TYPE_CHECKING, Any, Tuple, Union
+from typing import TYPE_CHECKING, Tuple, Union
 
 
 if TYPE_CHECKING:
@@ -51,7 +51,7 @@ def parse_reference(
 class CarlaReferenceFrame(ReferenceFrame):
     def __init__(
         self,
-        reference: Tuple[str, Any],
+        reference: ReferenceFrame,
         location: Tuple[float, float, float] = (0, 0, 0),
         rotation: Tuple[float, float, float] = (0, 0, 0),
         camera: bool = False,
@@ -64,18 +64,18 @@ class CarlaReferenceFrame(ReferenceFrame):
             q = q_stan_to_cam * q
         super().__init__(x, q, reference=reference)
 
-    @staticmethod
-    def from_reference(reference: ReferenceFrame):
-        loc = reference.x
-        rot = tforms.transform_orientation(reference.q, "quat", "euler")
-        return CarlaReferenceFrame(loc, rot)
-
     def as_carla_transform(self, local: bool):
         ref = self if local else self.integrate(start_at=GlobalOrigin3D)
         loc = numpy_vector_to_carla_location(ref.x)
         q = q_cam_to_stan * ref.q if self.camera else ref.q
         rot = quaternion_to_carla_rotation(q)
         return Transform(location=loc, rotation=rot)
+
+    # @staticmethod
+    # def from_reference(reference: ReferenceFrame):
+    #     loc = reference.x
+    #     rot = tforms.transform_orientation(reference.q, "quat", "euler")
+    #     return CarlaReferenceFrame(loc, rot)
 
 
 def wrap_static_actor_to_object_state(

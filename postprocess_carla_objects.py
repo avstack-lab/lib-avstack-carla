@@ -182,14 +182,15 @@ def process_func_frames(CDM, sens, obj_sens_folder, agent, objects_global, i_fra
         agent_ref = agent.as_reference()
         objects_local = objects_global
         for obj in objects_local:
-            obj.change_reference(agent_ref, inplace=True)
+            obj.change_reference(agent_ref, inplace=False)
     else:
         calib = CDM.get_calibration(i_frame, agent=agent.ID, sensor=sens)
 
         # -- change to sensor origin
-        objects_local = objects_global
-        for obj in objects_local:
-            obj.change_reference(calib.reference, inplace=True)
+        objects_local = [
+            obj.change_reference(calib.reference, inplace=False)
+            for obj in objects_global
+        ]
 
         # -- filter in view of sensors
         if ("cam" in sens.lower()) or ("radar" in sens.lower()):
@@ -220,7 +221,9 @@ def process_func_frames(CDM, sens, obj_sens_folder, agent, objects_global, i_fra
                 d_img = None
             if d_img is None:
                 try:
-                    pc = CDM.get_lidar(i_frame, "lidar")  # HACK this for now....
+                    pc = CDM.get_lidar(
+                        i_frame, sensor="lidar-0", agent=agent.ID
+                    )  # HACK this for now....
                     check_reference = True
                 except Exception as e:
                     logging.warning(e)
@@ -232,11 +235,11 @@ def process_func_frames(CDM, sens, obj_sens_folder, agent, objects_global, i_fra
                 pc = None
         elif "lidar" in sens.lower():
             d_img = None
-            pc = CDM.get_lidar(i_frame, sens)
+            pc = CDM.get_lidar(i_frame, sens, agent=agent.ID)
 
         elif "radar" in sens.lower():
             d_img = None
-            pc = CDM.get_lidar(i_frame, "lidar")  # HACK this for now
+            pc = CDM.get_lidar(i_frame, "lidar-0", agent=agent.ID)  # HACK this for now
             check_reference = True
 
         else:
@@ -259,7 +262,7 @@ def process_func_frames(CDM, sens, obj_sens_folder, agent, objects_global, i_fra
         ]
 
     # -- save objects to sensor files
-    obj_file = CDM.npc_files["frame"][i_frame]
+    obj_file = CDM.npc_files["frame"][i_frame].replace("npcs", "objects")
     CDM.save_objects(i_frame, objects_local, obj_sens_folder, obj_file)
 
 
