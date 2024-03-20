@@ -28,8 +28,8 @@ from typing import TYPE_CHECKING, List, Tuple
 
 
 if TYPE_CHECKING:
-    from avcarla.actor import CarlaActor
-    from avcarla.bootstrap import CarlaClient
+    from avcarla.actor import CarlaActorManager
+    from avcarla.client import CarlaClient
     from avstack.config import ConfigDict
 
 import carla
@@ -84,7 +84,7 @@ class CarlaDisplay(object):
         enabled: bool,
         display_size: Tuple[int, int],
         hud_cameras: List["ConfigDict"],
-        actors: List["CarlaActor"],
+        manager: "CarlaActorManager",
         client: "CarlaClient",
         gamma_correction: float = 2.2,
     ):
@@ -129,11 +129,12 @@ class CarlaDisplay(object):
 
             # set the camera view parameters
             assert len(hud_cameras) > 0
-            assert len(actors) > 0
+            assert len(manager.objects) > 0
             self._hud_cameras = hud_cameras
-            self._actors = actors
+            self._actors = manager.objects
             self._actors_cameras = [
-                [s for k, s in act.sensors.items() if "camera" in k] for act in actors
+                [s for k, s in act.sensors.items() if "camera" in k]
+                for act in manager.objects
             ]
             self.actor_host_idx = 0
             self.actor_camera_index = 0
@@ -533,7 +534,10 @@ class HUD(object):
         if self.world_map is None:
             self.world_map = client.map.name
         if self.disp_name is None:
-            self.disp_name = get_actor_display_name(actor.actor, truncate=20)
+            try:
+                self.disp_name = get_actor_display_name(actor.actor, truncate=20)
+            except AttributeError:
+                pass
 
         act = actor.actor if actor.actor else list(actor.sensors.values())[0].object
 

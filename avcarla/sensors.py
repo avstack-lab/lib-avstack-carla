@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, Union
 
 
 if TYPE_CHECKING:
-    from .bootstrap import CarlaClient
+    from .client import CarlaClient
     from avcarla.actor import CarlaActor
 
 import itertools
@@ -15,6 +15,8 @@ import numpy as np
 from avstack import calibration
 from avstack.config import ConfigDict
 from avstack.geometry import transformations as tforms
+from avstack.modules import BaseModule
+from avstack.utils.decorators import apply_hooks
 from carla import ColorConverter as cc
 
 from avcarla.config import CARLA
@@ -28,7 +30,7 @@ SensorData = avstack.sensors.SensorData
 # =============================================================
 
 
-class CarlaSensor:
+class CarlaSensor(BaseModule):
     id_iter = itertools.count()
     blueprint_name = ""
     name = ""
@@ -44,7 +46,11 @@ class CarlaSensor:
         do_listen: bool,
         client: "CarlaClient",
         parent: "CarlaActor",
+        source_ID: Union[int, None] = None,
+        *args,
+        **kwargs,
     ):
+        super().__init__(name="CarlaSensor", *args, **kwargs)
 
         # -- attributes
         self.client = client
@@ -63,11 +69,16 @@ class CarlaSensor:
         self.initialized = False
 
         # -- identifiers
-        source_ID = next(self.next_id)
-        self.ID = source_ID
-        self.source_ID = source_ID
+        _source_ID = next(self.next_id)
+        if source_ID is not None:
+            self.source_ID = source_ID
+        else:
+            if parent.ID is not None:
+                self.source_ID = parent.ID
+            else:
+                self.source_ID = _source_ID
         self.source_name = name
-        self.source_identifier = name + "-" + str(source_ID)
+        self.source_identifier = name + "-" + str(self.source_ID)
 
         # -- spawn from blueprint
         self.attributes = attributes
@@ -127,6 +138,7 @@ class CarlaSensor:
             weak_self = weakref.ref(self)
             self.object.listen(lambda event: self._on_sensor_event(weak_self, event))
 
+    @apply_hooks
     def _make_data_class(self, timestamp, frame, data, **kwargs):
         if self.initialized:
             data_class = self.base_data(
@@ -139,8 +151,9 @@ class CarlaSensor:
                 **kwargs,
             )
             self.parent.sensor_data_manager.push(data_class)
+            return data_class
         else:
-            print("sensor not initialized")
+            raise RuntimeError("sensor not initialized")
 
 
 @CARLA.register_module()
@@ -167,6 +180,8 @@ class CarlaGnss(CarlaSensor):
         },
         do_spawn: bool = True,
         do_listen: bool = True,
+        *args,
+        **kwargs,
     ):
         attributes = {
             "sensor_tick": sensor_tick,
@@ -181,6 +196,8 @@ class CarlaGnss(CarlaSensor):
             do_listen=do_listen,
             parent=parent,
             client=client,
+            *args,
+            **kwargs,
         )
         self.calibration = calibration.GpsCalibration(self.reference)
 
@@ -196,8 +213,7 @@ class CarlaGnss(CarlaSensor):
         R = np.diag(r**2)
         v_enu = np.squeeze(np.array([ned[1], ned[0], -ned[2]]))
         v_enu = v_enu + b + r * np.random.randn(3)
-        enu = {"z": v_enu, "R": R}
-        self._make_data_class(gnss.timestamp, gnss.frame, enu, levar=self.reference.x)
+        self._make_data_class(gnss.timestamp, gnss.frame, v_enu, levar=self.reference.x)
 
 
 @CARLA.register_module()
@@ -221,6 +237,8 @@ class CarlaImu(CarlaSensor):
         },
         do_spawn: bool = True,
         do_listen: bool = True,
+        *args,
+        **kwargs,
     ):
         attributes = {
             "sensor_tick": sensor_tick,
@@ -235,29 +253,33 @@ class CarlaImu(CarlaSensor):
             do_listen=do_listen,
             parent=parent,
             client=client,
+            *args,
+            **kwargs,
         )
         self.calibration = calibration.ImuCalibration(self.reference)
 
     @staticmethod
     def _on_sensor_event(weak_self, imu):
         self = weak_self()
+        acc = imu.accelerometer
+        gyr = imu.gyroscope
         agc = {
-            "accelerometer": imu.accelerometer,
-            "gyroscope": imu.gyroscope,
+            "accelerometer": [acc.x, acc.y, acc.z],
+            "gyroscope": [gyr.x, gyr.y, gyr.z],
             "compass": imu.compass,
         }
         self._make_data_class(imu.timestamp, imu.frame, agc)
 
 
 class CarlaCamera(CarlaSensor):
-    def __init__(self, attributes, **kwargs):
+    def __init__(self, attributes, *args, **kwargs):
         w = int(attributes["image_size_x"])
         h = int(attributes["image_size_y"])
         fov_h = float(attributes["fov"]) / 2.0  # half horizontal FOV
         f = (w / 2) / (np.tan(fov_h * math.pi / 180.0))
         self.P = np.array([[f, 0, w / 2.0, 0], [0, f, h / 2.0, 0], [0, 0, 1, 0]])
         self.imsize = (h, w)
-        super().__init__(attributes=attributes, **kwargs)
+        super().__init__(attributes=attributes, *args, **kwargs)
 
 
 @CARLA.register_module()
@@ -286,6 +308,8 @@ class CarlaRgbCamera(CarlaCamera):
         },
         do_spawn: bool = True,
         do_listen: bool = True,
+        *args,
+        **kwargs,
     ):
         attributes = {
             "image_size_x": image_size_x,
@@ -303,6 +327,8 @@ class CarlaRgbCamera(CarlaCamera):
             do_listen=do_listen,
             parent=parent,
             client=client,
+            *args,
+            **kwargs,
         )
         self.calibration = calibration.CameraCalibration(
             self.reference, self.P, self.imsize, channel_order="rgb"
@@ -342,6 +368,8 @@ class CarlaSemanticSegmentation(CarlaCamera):
         reference: ConfigDict = {"type": "CarlaReferenceFrame", "camera": True},
         do_spawn: bool = True,
         do_listen: bool = True,
+        *args,
+        **kwargs,
     ):
         attributes = {
             "image_size_x": image_size_x,
@@ -359,6 +387,8 @@ class CarlaSemanticSegmentation(CarlaCamera):
             do_listen=do_listen,
             parent=parent,
             client=client,
+            *args,
+            **kwargs,
         )
         self.calibration = calibration.SemanticSegmentationCalibration(
             self.reference, self.P, self.imsize, channel_order="rgb"
@@ -391,6 +421,8 @@ class CarlaDepthCamera(CarlaCamera):
         reference: ConfigDict = {"type": "CarlaReferenceFrame", "camera": True},
         do_spawn: bool = True,
         do_listen: bool = True,
+        *args,
+        **kwargs,
     ):
         attributes = {
             "image_size_x": image_size_x,
@@ -408,6 +440,8 @@ class CarlaDepthCamera(CarlaCamera):
             do_listen=do_listen,
             parent=parent,
             client=client,
+            *args,
+            **kwargs,
         )
         self.calibration = calibration.DepthCameraCalibration(
             self.reference, self.P, self.imsize, channel_order="rgb"
@@ -434,15 +468,21 @@ class CarlaLidar(CarlaSensor):
         mode: str = "standard",
         sensor_tick: float = 0.10,
         channels: int = 32,
-        rotation_frequency: float = 20,
+        rotation_frequency: float = 50,  # needs to match client rate
         range: float = 70.0,
         points_per_second: int = 1120000,  # 1750 * 32 * 20
         upper_fov: float = 2.4,
         lower_fov: float = -17.6,
+        horizontal_fov: float = 360.0,
         noise: dict = {},
-        reference: ConfigDict = {"type": "CarlaReferenceFrame"},
+        reference: ConfigDict = {
+            "type": "CarlaReferenceFrame",
+            "location": [0, 0, 1.6],
+        },
         do_spawn: bool = True,
         do_listen: bool = True,
+        *args,
+        **kwargs,
     ):
         attributes = {
             "channels": channels,
@@ -451,6 +491,7 @@ class CarlaLidar(CarlaSensor):
             "points_per_second": points_per_second,
             "upper_fov": upper_fov,
             "lower_fov": lower_fov,
+            "horizontal_fov": horizontal_fov,
             "sensor_tick": sensor_tick,
         }
         super().__init__(
@@ -463,6 +504,8 @@ class CarlaLidar(CarlaSensor):
             do_listen=do_listen,
             parent=parent,
             client=client,
+            *args,
+            **kwargs,
         )
         self.calibration = calibration.LidarCalibration(self.reference)
 
@@ -494,6 +537,8 @@ class CarlaRadar(CarlaSensor):
         reference: ConfigDict = {"type": "CarlaReferenceFrame"},
         do_spawn: bool = True,
         do_listen: bool = True,
+        *args,
+        **kwargs,
     ):
         attributes = {
             "range": range,
@@ -512,6 +557,8 @@ class CarlaRadar(CarlaSensor):
             do_listen=do_listen,
             parent=parent,
             client=client,
+            *args,
+            **kwargs,
         )
         fov_h = float(attributes["horizontal_fov"]) * np.pi / 180
         fov_v = float(attributes["vertical_fov"]) * np.pi / 180
