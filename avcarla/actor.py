@@ -43,12 +43,17 @@ def parse_vehicle_blueprint(vehicle: Union[str, int], vehicle_bps):
 def parse_spawn(
     spawn: Union[ConfigDict, str, int],
     spawn_points: List,
+    spawns_chosen: List[int],
     reference_to_spawn: ConfigDict,
 ):
     # parse the original spawn point
     if isinstance(spawn, str):
         if spawn in ["random", "randint"]:
-            tf = random.choice(spawn_points)
+            while True:
+                tf = random.choice(spawn_points)
+                if tf not in spawns_chosen:
+                    spawns_chosen.append(tf)
+                    break
         else:
             raise NotImplementedError(spawn)
     elif isinstance(spawn, int):
@@ -223,6 +228,7 @@ class CarlaNpc(CarlaObject):
         tf = parse_spawn(
             spawn=spawn,
             spawn_points=client.spawn_points,
+            spawns_chosen=client.spawns_chosen,
             reference_to_spawn=reference_to_spawn,
         )
         self.actor = try_spawn_actor(client.world, bp, tf)
@@ -340,6 +346,7 @@ class CarlaStaticActor(CarlaActor):
         self.tform = parse_spawn(
             spawn=spawn,
             spawn_points=client.spawn_points,
+            spawns_chosen=client.spawns_chosen,
             reference_to_spawn=reference_to_spawn,
         )
         super().__init__(
@@ -381,6 +388,7 @@ class CarlaMobileActor(CarlaActor):
         tf = parse_spawn(
             spawn=spawn,
             spawn_points=client.spawn_points,
+            spawns_chosen=client.spawns_chosen,
             reference_to_spawn=reference_to_spawn,
         )
         self.actor = try_spawn_actor(client.world, bp, tf)
