@@ -40,7 +40,12 @@ def parse_vehicle_blueprint(vehicle: Union[str, int], vehicle_bps):
     return bp
 
 
-def parse_spawn(spawn: Union[ConfigDict, str, int], spawn_points: List):
+def parse_spawn(
+    spawn: Union[ConfigDict, str, int],
+    spawn_points: List,
+    reference_to_spawn: ConfigDict,
+):
+    # parse the original spawn point
     if isinstance(spawn, str):
         if spawn in ["random", "randint"]:
             tf = random.choice(spawn_points)
@@ -52,7 +57,20 @@ def parse_spawn(spawn: Union[ConfigDict, str, int], spawn_points: List):
         tf = CARLA.build(spawn).as_carla_transform()
     else:
         raise NotImplementedError(type(spawn))
-    return tf
+
+    # apply the additional transformation
+    tf_as_pose = carla_transform_to_pose(tf)
+    tf_as_reference = ReferenceFrame(
+        x=tf_as_pose.position.x, q=tf_as_pose.attitude.q, reference=GlobalOrigin3D
+    )
+    spawn_to_object = CARLA.build(
+        reference_to_spawn, default_args={"reference": tf_as_reference}
+    )
+
+    # bring back to carla point
+    tf_spawn = spawn_to_object.as_carla_transform(local=False)
+
+    return tf_spawn
 
 
 def parse_destination(
@@ -102,7 +120,6 @@ def try_spawn_actor(world, bp, tf):
             break
     else:
         raise RuntimeError(f"Could not spawn actor after {i} attempts")
-    # world.tick()  # to allow for initialization
     return actor
 
 
@@ -142,11 +159,20 @@ class CarlaObjectManager(BaseModule):
 
 
 class CarlaObject(BaseModule):
-    def __init__(self, name, spawn, client: "CarlaClient", *args, **kwargs):
+    def __init__(
+        self,
+        name,
+        spawn,
+        client: "CarlaClient",
+        reference_to_spawn: "ConfigDict",
+        *args,
+        **kwargs,
+    ):
         super().__init__(name=name, *args, **kwargs)
         self.world = client.world
         self.map = self.world.get_map()
         self.spawn = spawn
+        self.reference_to_spawn = reference_to_spawn
 
     def destroy(self):
         if self.actor is not None:
@@ -187,16 +213,28 @@ class CarlaNpc(CarlaObject):
         spawn,
         npc_type: str,
         client: "CarlaClient",
+        reference_to_spawn: ConfigDict = {"type": "CarlaReferenceFrame"},
         *args,
         **kwargs,
     ):
         self.ID_npc_global = next(self.id_iter_global)
         name = f"npc-{self.ID_npc_global}"
         bp = np.random.choice(client.world.get_blueprint_library().filter(npc_type))
-        tf = parse_spawn(spawn=spawn, spawn_points=client.spawn_points)
+        tf = parse_spawn(
+            spawn=spawn,
+            spawn_points=client.spawn_points,
+            reference_to_spawn=reference_to_spawn,
+        )
         self.actor = try_spawn_actor(client.world, bp, tf)
         self.actor.set_autopilot(True)
-        super().__init__(name, spawn, client, *args, **kwargs)
+        super().__init__(
+            name=name,
+            spawn=spawn,
+            reference_to_spawn=reference_to_spawn,
+            client=client,
+            *args,
+            **kwargs,
+        )
 
     @property
     def ID(self):
@@ -221,6 +259,7 @@ class CarlaActor(CarlaObject):
         pipeline: ConfigDict,
         sensors: List[ConfigDict],
         client: "CarlaClient",
+        reference_to_spawn: ConfigDict,
         *args,
         **kwargs,
     ):
@@ -230,7 +269,14 @@ class CarlaActor(CarlaObject):
             name = f"mobileactor-{self.ID_actor_type}"
         else:
             name = f"staticactor-{self.ID_actor_type}"
-        super().__init__(name, spawn, client, *args, **kwargs)
+        super().__init__(
+            name=name,
+            spawn=spawn,
+            reference_to_spawn=reference_to_spawn,
+            client=client,
+            *args,
+            **kwargs,
+        )
 
         # pose init
         actor_pose = self.get_pose()
@@ -287,11 +333,22 @@ class CarlaStaticActor(CarlaActor):
         sensors: List[ConfigDict],
         pipeline: ConfigDict,
         client: "CarlaClient",
+        reference_to_spawn: ConfigDict = {"type": "CarlaReferenceFrame"},
     ) -> None:
         """Initialize sensors under this static actor container"""
         self.actor = None
-        self.tform = parse_spawn(spawn=spawn, spawn_points=client.spawn_points)
-        super().__init__(spawn=spawn, pipeline=pipeline, sensors=sensors, client=client)
+        self.tform = parse_spawn(
+            spawn=spawn,
+            spawn_points=client.spawn_points,
+            reference_to_spawn=reference_to_spawn,
+        )
+        super().__init__(
+            spawn=spawn,
+            reference_to_spawn=reference_to_spawn,
+            pipeline=pipeline,
+            sensors=sensors,
+            client=client,
+        )
 
     def _tick(self):
         data = self.sensor_data_manager.pop()
@@ -315,15 +372,26 @@ class CarlaMobileActor(CarlaActor):
         autopilot: bool,
         destination: Union[ConfigDict, str, int, None],
         client: "CarlaClient",
+        reference_to_spawn: ConfigDict = {"type": "CarlaReferenceFrame"},
     ) -> None:
         """Initialize the vehicle and attach sensors to it"""
 
         self.vehicle_bps = client.world.get_blueprint_library().filter("vehicle")
         bp = parse_vehicle_blueprint(vehicle=vehicle, vehicle_bps=self.vehicle_bps)
-        tf = parse_spawn(spawn=spawn, spawn_points=client.spawn_points)
+        tf = parse_spawn(
+            spawn=spawn,
+            spawn_points=client.spawn_points,
+            reference_to_spawn=reference_to_spawn,
+        )
         self.actor = try_spawn_actor(client.world, bp, tf)
 
-        super().__init__(spawn=spawn, pipeline=pipeline, sensors=sensors, client=client)
+        super().__init__(
+            spawn=spawn,
+            reference_to_spawn=reference_to_spawn,
+            pipeline=pipeline,
+            sensors=sensors,
+            client=client,
+        )
 
         try:
             # provide initialization
