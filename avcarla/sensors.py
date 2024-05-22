@@ -89,7 +89,6 @@ class CarlaSensor(BaseModule):
         self.object = None
         if do_spawn:
             self.spawn()
-            # time.sleep(0.2)  # to allow for initialization
 
     @property
     def _default_subfolder(self):

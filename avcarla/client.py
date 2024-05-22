@@ -12,6 +12,7 @@ class CarlaClient:
         traffic_manager_port: int,
         synchronous: bool,
         rate: float,
+        disable_static_actors: bool = True,
     ) -> None:
         self.client = carla.Client(connect_ip, connect_port)
         self.client.set_timeout(2.0)
@@ -25,6 +26,9 @@ class CarlaClient:
         self.world.apply_settings(settings)
         self.map = self.world.get_map()
         self.spawn_points = self.map.get_spawn_points()
+        self.spawns_chosen = []
+        if disable_static_actors:
+            self.world.unload_map_layer(carla.MapLayer.ParkedVehicles)
 
     def client_npcs(self):
         raise

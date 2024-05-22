@@ -67,8 +67,8 @@ class CarlaReferenceFrame(ReferenceFrame):
     def as_carla_transform(self, local: bool):
         ref = self if local else self.integrate(start_at=GlobalOrigin3D)
         loc = numpy_vector_to_carla_location(ref.x)
-        q = q_cam_to_stan * ref.q if self.camera else ref.q
-        rot = quaternion_to_carla_rotation(q)
+        q_body_to_world = q_cam_to_stan * ref.q if self.camera else ref.q
+        rot = quaternion_to_carla_rotation(q_body_to_world)
         return Transform(location=loc, rotation=rot)
 
     # @staticmethod
