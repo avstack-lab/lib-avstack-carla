@@ -216,15 +216,19 @@ class CarlaNpc(CarlaObject):
     def __init__(
         self,
         spawn,
-        npc_type: str,
         client: "CarlaClient",
+        npc_type: str = "random",
         reference_to_spawn: ConfigDict = {"type": "CarlaReferenceFrame"},
         *args,
         **kwargs,
     ):
         self.ID_npc_global = next(self.id_iter_global)
         name = f"npc-{self.ID_npc_global}"
-        bp = np.random.choice(client.world.get_blueprint_library().filter(npc_type))
+        if ("vehicle" in npc_type) or (npc_type == "random"):
+            vehicle_bps = client.world.get_blueprint_library().filter("vehicle")
+            bp = parse_vehicle_blueprint(npc_type, vehicle_bps)
+        else:
+            raise NotImplementedError(npc_type)
         tf = parse_spawn(
             spawn=spawn,
             spawn_points=client.spawn_points,

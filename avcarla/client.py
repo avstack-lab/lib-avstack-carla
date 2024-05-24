@@ -19,7 +19,8 @@ class CarlaClient:
         self.client.set_timeout(2.0)
         self.traffic_manager = self.client.get_trafficmanager(traffic_manager_port)
         self.traffic_manager.set_synchronous_mode(synchronous)
-        self.traffic_manager.set_random_device_seed(traffic_manager_seed)
+        if traffic_manager_seed is not None:
+            self.traffic_manager.set_random_device_seed(traffic_manager_seed)
         self.world = self.client.get_world()
         self._orig_settings = self.world.get_settings()
         settings = self.world.get_settings()
