@@ -29,7 +29,7 @@ from .geometry import CarlaReferenceFrame, carla_transform_to_pose
 
 def parse_vehicle_blueprint(vehicle: Union[str, int], vehicle_bps):
     if isinstance(vehicle, str):
-        if vehicle in ["random", "randint"]:
+        if vehicle in ["random", "randint", "vehicle"]:
             bp = random.choice(vehicle_bps)
         else:
             bp = vehicle_bps.filter(vehicle)[0]
