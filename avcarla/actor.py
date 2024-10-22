@@ -29,10 +29,13 @@ from .geometry import CarlaReferenceFrame, carla_transform_to_pose
 
 def parse_vehicle_blueprint(vehicle: Union[str, int], vehicle_bps):
     if isinstance(vehicle, str):
-        if vehicle in ["random", "randint", "vehicle"]:
+        if vehicle in ["random", "randint", "vehicle", "random-vehicle"]:
             bp = random.choice(vehicle_bps)
         else:
-            bp = vehicle_bps.filter(vehicle)[0]
+            try:
+                bp = vehicle_bps.filter(vehicle)[0]
+            except IndexError:
+                raise IndexError(f"Could not filter vehicle {vehicle} in blueprints")
     elif isinstance(vehicle, int):
         bp = vehicle_bps[vehicle]
     else:
@@ -134,9 +137,10 @@ class CarlaObjectManager(BaseModule):
         self, objects, subname: str, client: "CarlaClient", *args, **kwargs
     ) -> None:
         super().__init__(name="CarlaObjectManager", *args, **kwargs)
-        self.objects = [
-            CARLA.build(obj, default_args={"client": client}) for obj in objects
-        ]
+        # do it in long form to allow for destroying on error
+        self.objects = []
+        for obj in objects:
+            self.objects.append(CARLA.build(obj, default_args={"client": client}))
         self.subname = subname
 
     def destroy(self):

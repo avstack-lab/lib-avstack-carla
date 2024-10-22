@@ -18,6 +18,8 @@ packages = [{include = "avcarla"}]
 python = "~3.10"
 numpy = ">=1.20, <1.26"
 numpy-quaternion = "^2022.4"
+lib-avstack-core = { path = "../lib-avstack-core", develop = true }
+lib-avstack-api = { path = "../lib-avstack-api", develop = true }
 
 [tool.poetry.group.test.dependencies]
 pytest = "^7"
