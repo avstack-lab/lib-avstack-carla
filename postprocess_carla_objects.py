@@ -199,60 +199,46 @@ def process_func_frames(
             objects_local = [
                 obj
                 for obj in objects_local
-                if box_in_fov(obj.box, calib, d_thresh=150, check_reference=False)
+                if box_in_fov(obj.box, calib, d_thresh=150, check_reference=True)
             ]
 
-        # -- get depth image
+        # -- get depth information from dephtcam or lidar
         check_reference = False
-        if "cam" in sens.lower():
-            if "semseg" in sens.lower():
-                # sens_d = sens.replace('SEMSEG', 'DEPTH')
-                sens_d = None  # only do the lidar-based approach for now...
-            elif "depth" not in sens.lower():
-                # sens_d = sens + "_DEPTH"
-                sens_d = None  # only do the lidar-based approach for now...
-            else:
-                # sens_d = sens
-                sens_d = None  # only do the lidar-based approach for now...
-            try:
-                if sens_d is not None:
-                    d_img = CDM.get_depth_image(i_frame, sens_d)
-                else:
-                    d_img = None
-            except Exception as e:
-                d_img = None
-            if d_img is None:
-                try:
-                    pc = CDM.get_lidar(
-                        i_frame, sensor="lidar-0", agent=agent.ID
-                    )  # HACK this for now....
-                    check_reference = True
-                except Exception as e:
-                    logging.warning(e)
-                    pc = None
-                    print(
-                        "Could not load depth image or lidar...setting occlusion as UNKNOWN"
-                    )
-            else:
-                pc = None
-        elif "lidar" in sens.lower():
-            d_img = None
-            pc = CDM.get_lidar(i_frame, sens, agent=agent.ID)
-
-        elif "radar" in sens.lower():
-            d_img = None
-            pc = CDM.get_lidar(i_frame, "lidar-0", agent=agent.ID)  # HACK this for now
+        # prefer to get lidar data
+        try:
+            pc = CDM.get_lidar(
+                frame=i_frame,
+                sensor="lidar-0",
+                agent=agent.ID,
+            )  # HACK this for now....
             check_reference = True
-
-        else:
-            raise NotImplementedError(sens)
+        except Exception as e:
+            pc = None
+            if "cam" in sens.lower():
+                # otherwise, check for depth camera
+                try:
+                    if "depth" in sens.lower():
+                        depth_camera = sens
+                    elif "semseg" in sens.lower():
+                        depth_camera = sens.replace("semseg", "depth")
+                    else:
+                        depth_camera = sens.replace("camera", "depthcamera")
+                    depth_img = CDM.get_depth_image(
+                        frame=i_frame,
+                        sensor=depth_camera,
+                        agent=agent.ID,
+                    )
+                except Exception as e:
+                    depth_img = None
+            else:
+                depth_img = None
 
         # -- set occlusion
         for obj in objects_local:
-            if d_img is not None:
-                obj.set_occlusion_by_depth(d_img, check_reference=check_reference)
-            elif pc is not None:
+            if pc is not None:
                 obj.set_occlusion_by_lidar(pc, check_reference=check_reference)
+            elif depth_img is not None:
+                obj.set_occlusion_by_depth(depth_img, check_reference=check_reference)
             else:
                 print("Could not set occlusion!")
 

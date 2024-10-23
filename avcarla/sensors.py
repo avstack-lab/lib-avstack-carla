@@ -352,6 +352,7 @@ class CarlaSemanticSegmentation(CarlaCamera):
     blueprint_name = "sensor.camera.semantic_segmentation"
     name = "semseg_camera"
     base_data = avstack.sensors.SemanticSegmentationImageData
+    converter = cc.CityScapesPalette
 
     def __init__(
         self,
@@ -405,6 +406,7 @@ class CarlaDepthCamera(CarlaCamera):
     blueprint_name = "sensor.camera.depth"
     name = "depth_camera"
     base_data = avstack.sensors.DepthImageData
+    converter = cc.Depth
 
     def __init__(
         self,
