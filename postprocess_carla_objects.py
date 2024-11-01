@@ -203,7 +203,7 @@ def process_func_frames(
             ]
 
         # -- get depth information from dephtcam or lidar
-        check_reference = False
+        check_reference = True
         # prefer to get lidar data
         try:
             pc = CDM.get_lidar(
@@ -211,7 +211,6 @@ def process_func_frames(
                 sensor="lidar-0",
                 agent=agent.ID,
             )  # HACK this for now....
-            check_reference = True
         except Exception as e:
             pc = None
             if "cam" in sens.lower():

@@ -152,7 +152,7 @@ class CarlaSensor(BaseModule):
             self.parent.sensor_data_manager.push(data_class)
             return data_class
         else:
-            raise RuntimeError("sensor not initialized")
+            raise RuntimeError(f"Sensor {type(self)} not initialized")
 
 
 @CARLA.register_module()
