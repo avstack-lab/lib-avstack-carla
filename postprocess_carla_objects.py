@@ -1,6 +1,5 @@
 import argparse
 import cProfile
-import logging
 import os
 from functools import partial
 from multiprocessing import Pool

@@ -23,7 +23,7 @@ class CarlaClient:
         self.rng = rng if rng is not None else np.random.RandomState(seed)
         self._prob_light_green = prob_light_green
         self.client = carla.Client(connect_ip, connect_port)
-        self.client.set_timeout(2.0)
+        self.client.set_timeout(4.0)
         self.traffic_manager = self.client.get_trafficmanager(traffic_manager_port)
         self.traffic_manager.set_synchronous_mode(synchronous)
         if (traffic_manager_seed is None) and (seed is not None):
