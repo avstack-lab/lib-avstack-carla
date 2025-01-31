@@ -266,7 +266,10 @@ def main(args, frame_start=4, frame_end_trim=4, n_frames_max=100000, n_max_proc=
         )
     )
     for i_scene, CDM in enumerate(CSM):
-        print("Scene {} of {}".format(i_scene + 1, len(CSM)))
+        if args.n_runs is None:
+            print("Scene {} of {}".format(i_scene + 1, len(CSM)))
+        else:
+            print("Scene {} of {}".format(i_scene + 1, args.n_runs))
         with_multi = args.multi
         frames = [f for f in CDM.frames if f >= frame_start]
         frames = frames[: max(1, min(n_frames_max, len(frames)) - frame_end_trim)]
@@ -290,11 +293,16 @@ def main(args, frame_start=4, frame_end_trim=4, n_frames_max=100000, n_max_proc=
                 objects_global=objects_global,
                 n_max_proc=n_max_proc,
             )
+        if args.n_runs is not None:
+            if i_scene+1 >= args.n_runs:
+                print("Hit maximum number of runs!")
+                break
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("data_dir", type=str)
+    parser.add_argument("--n_runs", type=int, default=None)
     parser.add_argument(
         "--multi", action="store_true", help="Enable for multiprocessing"
     )
