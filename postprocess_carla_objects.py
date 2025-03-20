@@ -1,3 +1,4 @@
+import gc
 import argparse
 import cProfile
 import os
@@ -78,6 +79,7 @@ def process_func_agents(
     for i_sens, (sens, sensor_frames) in enumerate(
         reversed(CDM.sensor_frames[agent_ID].items())
     ):
+        gc.collect()
         print(
             "Processing {} of {} - sensor {}".format(
                 i_sens + 1, len(CDM.sensor_frames[agent_ID]), sens
@@ -293,6 +295,7 @@ def main(args, frame_start=4, frame_end_trim=4, n_frames_max=100000, n_max_proc=
                 objects_global=objects_global,
                 n_max_proc=n_max_proc,
             )
+        del objects_global, agents, frames, timestamps
         if args.n_runs is not None:
             if i_scene+1 >= args.n_runs:
                 print("Hit maximum number of runs!")
